@@ -8,6 +8,9 @@
 #include <unordered_map>
 #include <ios>
 #include <stdexcept>
+#include <thread>
+#include <atomic>
+#include <mutex>
 #include "HashMap.h"
 #include "FileUtils.h"
 
@@ -114,6 +117,80 @@ int main(int argc, char **argv)
                 pairs.reserve(unique_words);
                 for (const auto& p : um) pairs.emplace_back(p);
                 pr::printResults(total_words, unique_words, pairs, mode + ".freq");
+
+        } else if (mode == "mt_naive") {
+                size_t total_words = 0;
+                size_t unique_words = 0;
+                std::vector<std::thread> threads;
+                threads.reserve(num_threads);
+                std::unordered_map<std::string, int> um;
+                auto parts = pr::partition(filename, file_size, num_threads);
+                for (size_t i = 0; i < parts.size() - 1; ++i) {
+                        threads.emplace_back([&, i]() {
+                                pr::processRange(filename, parts[i], parts[i+1], [&](const std::string& word) {
+                                        total_words++;
+                                        um[word]++;
+                                });
+                        });  
+                }
+                for (auto& t : threads) {
+                        t.join();
+                }
+                unique_words = um.size();
+                pairs.reserve(unique_words);
+                for (const auto& p : um) pairs.emplace_back(p);
+                pr::printResults(total_words, unique_words, pairs, mode + ".freq");
+                
+
+        } else if (mode == "mt_atomic") {
+                std::atomic<size_t> total_words = 0;
+                size_t unique_words = 0;
+                std::vector<std::thread> threads;
+                threads.reserve(num_threads);
+                std::unordered_map<std::string, int> um;
+                auto parts = pr::partition(filename, file_size, num_threads);
+                for (size_t i = 0; i < parts.size() - 1; ++i) {
+                        threads.emplace_back([&, i]() {
+                                pr::processRange(filename, parts[i], parts[i+1], [&](const std::string& word) {
+                                        total_words++;
+                                        um[word]++;
+                                });
+                        });  
+                }
+                for (auto& t : threads) {
+                        t.join();
+                }
+                unique_words = um.size();
+                pairs.reserve(unique_words);
+                for (const auto& p : um) pairs.emplace_back(p);
+                pr::printResults(total_words, unique_words, pairs, mode + ".freq");
+                
+
+        } else if (mode == "mt_mutex") {
+                std::atomic<size_t> total_words = 0;
+                size_t unique_words = 0;
+                std::vector<std::thread> threads;
+                threads.reserve(num_threads);
+                std::unordered_map<std::string, int> um;
+                std::mutex m;
+                auto parts = pr::partition(filename, file_size, num_threads);
+                for (size_t i = 0; i < parts.size() - 1; ++i) {
+                        threads.emplace_back([&, i]() {
+                                pr::processRange(filename, parts[i], parts[i+1], [&](const std::string& word) {
+                                        total_words++;
+                                        std::unique_lock lock(m);
+                                        um[word]++;
+                                });
+                        });  
+                }
+                for (auto& t : threads) {
+                        t.join();
+                }
+                unique_words = um.size();
+                pairs.reserve(unique_words);
+                for (const auto& p : um) pairs.emplace_back(p);
+                pr::printResults(total_words, unique_words, pairs, mode + ".freq");
+                
 
         } else {
                 cerr << "Unknown mode '" << mode << "'. Supported modes: freqstd, freqstdf, partition, freq" << endl;

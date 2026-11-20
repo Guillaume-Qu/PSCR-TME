@@ -24,8 +24,16 @@ void treatImage(FileQueue& fileQueue, const std::filesystem::path& outputFolder)
 void reader(FileQueue& fileQueue, ImageTaskQueue& imageQueue) {
     pr::thread_timer timer;
     // Q4 : compléter la boucle de cette étape.
-    (void)fileQueue;
-    (void)imageQueue;
+    while (true) {
+        std::filesystem::path file = fileQueue.pop();
+        if (file == FILE_POISON) break;
+        QImage original = loadImage(file);
+        if (!original.isNull()) {
+            TaskData* t = new TaskData{original, file.filename()};
+            imageQueue.push(t);
+        }
+    }
+
     std::stringstream ss;
     ss << "Thread " << std::this_thread::get_id() << " (reader): " << timer << " ms CPU\n";
     std::cout << ss.str();
@@ -34,8 +42,12 @@ void reader(FileQueue& fileQueue, ImageTaskQueue& imageQueue) {
 void resizer(ImageTaskQueue& imageQueue, ImageTaskQueue& resizedQueue) {
     pr::thread_timer timer;
     // Q4 : compléter la boucle de cette étape.
-    (void)imageQueue;
-    (void)resizedQueue;
+    while (true) {
+        TaskData* t = imageQueue.pop();
+        if (t == TASK_POISON) break;
+        t->image = resizeImage(t->image);
+        resizedQueue.push(t);
+    }
     std::stringstream ss;
     ss << "Thread " << std::this_thread::get_id() << " (resizer): " << timer << " ms CPU\n";
     std::cout << ss.str();
@@ -44,8 +56,13 @@ void resizer(ImageTaskQueue& imageQueue, ImageTaskQueue& resizedQueue) {
 void saver(ImageTaskQueue& resizedQueue, const std::filesystem::path& outputFolder) {
     pr::thread_timer timer;
     // Q4 : compléter la boucle de cette étape.
-    (void)resizedQueue;
-    (void)outputFolder;
+    while (true) {
+        TaskData* t = resizedQueue.pop();
+        if (t == TASK_POISON) break;
+        saveImage(t->image, outputFolder / t->filename);
+        delete t;
+    }
+    
     std::stringstream ss;
     ss << "Thread " << std::this_thread::get_id() << " (saver): " << timer << " ms CPU\n";
     std::cout << ss.str();
